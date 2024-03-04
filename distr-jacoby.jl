@@ -1,6 +1,11 @@
-using Distributed 
-using SharedArrays
+using Distributed
 using BenchmarkTools
+
+nprc = 2
+addprocs(nprc) 
+w = workers()
+
+@everywhere using DistributedData
 
 function gen_matrix(n)
     A = randn(n, n)
@@ -40,8 +45,6 @@ function jacobi(A, b, x0, max_count = 1000, ε = 1e-6)
                 end
             end
             x_new[i] = (b[i] - Σ) / A[i, i]
-            # @warn "from normal jacobi"
-            # @error x_new[i]
         end
         if maximum(abs.(x_new - x_old)) < ε 
             return x_new
@@ -52,20 +55,35 @@ function jacobi(A, b, x0, max_count = 1000, ε = 1e-6)
     return x_old
 end
 
+# computes div(n, nprc) x's on every proc
+@everywhere function worker_func(n, x_old, α, β, ind)
+# function worker_func(n, x_old, α, β, ind)
+    x_new = copy(β)
+    for i in 1:length(β)
+        Σ = 0.0
+        for j in 1:n
+            if j != ind[i]
+                Σ += α[i, j] * x_old[j]
+            end
+        end
+        x_new[i] = (β[i] - Σ) / α[i, ind[i]]
+    end
+    return x_new
+end
 
-function pjacobi(A, b, x0, max_count, ε, nprc)
+
+function pjacobi(max_count, ε, nprc, x0)
     x_old = copy(x0)
-    x_old = SharedVector(x_old)
     x_new = []
     count = 0
-    # @warn "Time from while:"
     while count < max_count
-        x_new = []
-        # @warn "time from Parallel Jacoby insides:"
-        x_new = @distributed vcat for r in range(1, nprc)
-            JacobyModule.worker_func(n, x_old, view(A, ranges[r], :), 
-                                            b[ranges[r]], ranges[r])
-            end
+        # send data to processes
+        for r in range(1, nprc)
+            save_at(w[r], :x_old, x_old)
+        end
+        # obtain another x_new
+        x_new = reduce(vcat, map(fetch, [get_from(i, :(begin worker_func(N, x_old, data, b, ind) end))
+                                         for i in workers()]))
         if maximum(abs.(x_new - x_old)) < ε 
             return x_new
         end
@@ -77,45 +95,49 @@ function pjacobi(A, b, x0, max_count, ε, nprc)
 end
 
 
-max_count = 100
+max_count = 1000
 ε = 1e-3
 
-N = 12000
-nprc = 4
+N = 3000
 
 A = gen_matrix(N)
 b = gen_matrix(N)[1, :]
 x0 = zeros(N)
 
-@btime x = jacobi(A, b, x0, max_count, ε)
+# @btime x = jacobi(A, b, x0, max_count, ε)
+x = jacobi(A, b, x0, max_count, ε)
 
 # PARALLEL
 #
-n = length(b)
-per_w = div(n, nprc)
+per_w = div(N, nprc)
 @info "rows per proc: $per_w"
-if nprc > n
+if nprc > N
     @error "The number of procs $nprc is bigger then number of equations"
     @info "Reduce the number of procs at least to $n!"
     return 1
 end
-if mod(n, nprc) != 0
+if mod(N, nprc) != 0
     @error "mod(n, nprc) != 0!!!!!"
     return 2
 end
 
-addprocs(nprc) 
-
-@everywhere include("JacobyModule.jl")
 
 # create range for every proc
-ranges = create_ranges(n, div(n, nprc))
+ranges = create_ranges(N, div(N, nprc))
 
-A = SharedMatrix(A)
-b = SharedVector(b)
+@warn "PUTTING DATA AND VARS ON NODES"
+
+for r in range(1, nprc)
+    save_at(w[r], :data, A[ranges[r], :])
+    save_at(w[r], :N, N)
+    save_at(w[r], :b, b[ranges[r]])
+    save_at(w[r], :ind, ranges[r])
+end
+
 
 @warn "STARTING PARALLEL PROCESSING..."
 
-@btime X = pjacobi(A, b, x0, max_count, ε, nprc)
+# @btime X = pjacobi(max_count, ε, nprc, x0)
+X = pjacobi(max_count, ε, nprc, x0)
 
 rmprocs(procs()[2:end])
