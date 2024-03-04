@@ -98,13 +98,13 @@ end
 max_count = 1000
 ε = 1e-3
 
-N = 3000
+N = 1000
 
 A = gen_matrix(N)
 b = gen_matrix(N)[1, :]
 x0 = zeros(N)
 
-# @btime x = jacobi(A, b, x0, max_count, ε)
+@btime x = jacobi(A, b, x0, max_count, ε)
 x = jacobi(A, b, x0, max_count, ε)
 
 # PARALLEL
@@ -137,7 +137,7 @@ end
 
 @warn "STARTING PARALLEL PROCESSING..."
 
-# @btime X = pjacobi(max_count, ε, nprc, x0)
+@btime X = pjacobi(max_count, ε, nprc, x0)
 X = pjacobi(max_count, ε, nprc, x0)
 
 rmprocs(procs()[2:end])
