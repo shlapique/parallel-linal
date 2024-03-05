@@ -1,8 +1,16 @@
 using Distributed
 using BenchmarkTools
 
-nprc = 2
-addprocs(nprc) 
+# pass args for tests
+defaultARGS = [1000, 2]
+# 
+localARGS = isdefined(Main, :newARGS) ? newARGS : defaultARGS
+# @info "passed args: N=$(localARGS[1]), nprc=$(localARGS[2]):"
+N = localARGS[1]
+nprc = localARGS[2]
+### 
+
+addprocs(nprc)
 w = workers()
 
 @everywhere using DistributedData
@@ -57,7 +65,6 @@ end
 
 # computes div(n, nprc) x's on every proc
 @everywhere function worker_func(n, x_old, α, β, ind)
-# function worker_func(n, x_old, α, β, ind)
     x_new = copy(β)
     for i in 1:length(β)
         Σ = 0.0
@@ -98,13 +105,14 @@ end
 max_count = 1000
 ε = 1e-3
 
-N = 1000
-
 A = gen_matrix(N)
 b = gen_matrix(N)[1, :]
 x0 = zeros(N)
 
-@btime x = jacobi(A, b, x0, max_count, ε)
+@warn "RUNNING IN ONE THREAD..."
+
+stime = @belapsed jacobi(A, b, x0, max_count, ε)
+println("elapsed single process: $stime")
 x = jacobi(A, b, x0, max_count, ε)
 
 # PARALLEL
@@ -125,19 +133,20 @@ end
 # create range for every proc
 ranges = create_ranges(N, div(N, nprc))
 
-@warn "PUTTING DATA AND VARS ON NODES"
+println("sending data to workers...")
 
 for r in range(1, nprc)
-    save_at(w[r], :data, A[ranges[r], :])
-    save_at(w[r], :N, N)
-    save_at(w[r], :b, b[ranges[r]])
-    save_at(w[r], :ind, ranges[r])
+    fetch(save_at(w[r], :data, A[ranges[r], :]))
+    fetch(save_at(w[r], :N, N))
+    fetch(save_at(w[r], :b, b[ranges[r]]))
+    fetch(save_at(w[r], :ind, ranges[r]))
 end
 
 
-@warn "STARTING PARALLEL PROCESSING..."
+@warn "RUNNING IN PARALLEL..."
 
-@btime X = pjacobi(max_count, ε, nprc, x0)
+ptime = @belapsed pjacobi(max_count, ε, nprc, x0)
+println("elapsed paralell: $ptime")
 X = pjacobi(max_count, ε, nprc, x0)
 
 rmprocs(procs()[2:end])
