@@ -8,6 +8,7 @@ function run_tests(Ns, nprcs)
             @info "stime=$stime, ptime=$ptime"
             data[i, j] = (stime, ptime)
             println("==========")
+            sleep(1)
         end
     end
 end
