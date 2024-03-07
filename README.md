@@ -16,7 +16,6 @@ include("distr-jacobi.jl")
 ## Results
 
 Tested on HPC VM:
-specs:
 
 **CPU: Intel Xeon Gold 6244 @ 3.60GHz**
 
