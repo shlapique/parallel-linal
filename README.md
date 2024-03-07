@@ -21,7 +21,7 @@ Tested on HPC VM:
 
 **nVCPU: 12**
 
-**ОЗУ: 94 Gib**
+**RAM: 94 Gib**
 
 **OS: openSUSE Leap 15.5 x86_64 GNU/Linux**
 
