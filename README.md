@@ -37,4 +37,4 @@ specs:
 |$25200\times25200$|8.1449|3.2131|1.8372|1.1579|1.1129|0.6414|
 |$49680\times49680$|31.0217|15.3617|9.5660|5.4763|5.4366|3.1153|
 
-![](https://raw.githubusercontent.com/raw.githubusercontent.com/shlapique/parallel-linal/master/img/nprcs_to_speedup.png)
+![](https://raw.githubusercontent.com/shlapique/parallel-linal/master/img/nprcs_to_speedup.png)
